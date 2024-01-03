@@ -173,7 +173,7 @@ class RRL:
         accuracy_b = []
         f1_score_b = []
 
-        criterion = nn.CrossEntropyLoss().cuda(self.device_id)
+        criterion = nn.MSELoss().cuda(self.device_id)  # 使用均方误差损失函数
         optimizer = torch.optim.Adam(self.net.parameters(), lr=lr, weight_decay=0.0)
 
         cnt = -1
@@ -195,10 +195,16 @@ class RRL:
                 optimizer.zero_grad()  # Zero the gradient buffers.
                 
                 # trainable softmax temperature
-                y_bar = self.net.forward(X) / torch.exp(self.net.t)
-                y_arg = torch.argmax(y, dim=1)
+                # y_bar = self.net.forward(X) / torch.exp(self.net.t)
+                # y_arg = torch.argmax(y, dim=1)
+
+                y_bar = self.net.forward(X)  # 不再使用softmax激活函数
+                # 应该除以温度吗？
+                # y_bar = y_bar / torch.exp(self.net.t)
+
+                loss_rrl = criterion(y_bar, y) + weight_decay * self.l2_penalty()
                 
-                loss_rrl = criterion(y_bar, y_arg) + weight_decay * self.l2_penalty()
+                # loss_rrl = criterion(y_bar, y_arg) + weight_decay * self.l2_penalty()
                 
                 ba_loss_rrl = loss_rrl.item()
                 epoch_loss_rrl += ba_loss_rrl
@@ -272,19 +278,27 @@ class RRL:
             y_pred_b_list.append(output)
 
         y_pred_b = torch.cat(y_pred_b_list).cpu().numpy()
-        y_pred_b_arg = np.argmax(y_pred_b, axis=1)
-        logging.debug('y_rrl_: {} {}'.format(y_pred_b_arg.shape, y_pred_b_arg[:: slice_step]))
-        logging.debug('y_rrl: {} {}'.format(y_pred_b.shape, y_pred_b[:: (slice_step)]))
 
-        accuracy_b = metrics.accuracy_score(y_true, y_pred_b_arg)
-        f1_score_b = metrics.f1_score(y_true, y_pred_b_arg, average='macro')
+        mse_score = np.sqrt(metrics.mean_squared_error(y_true, y_pred_b))  # 使用均方根误差作为评估指标
+        mae_score = metrics.mean_absolute_error(y_true, y_pred_b)  # 使用平均绝对误差作为评估指标
+        logging.info('-' * 60)
+        logging.info('On {} Set:\n\tMSE of RRL Model: {}'.format(set_name, mse_score))
+        logging.info('-' * 60)
+        return mae_score, mse_score
 
-        logging.info('-' * 60)
-        logging.info('On {} Set:\n\tAccuracy of RRL  Model: {}'
-                        '\n\tF1 Score of RRL  Model: {}'.format(set_name, accuracy_b, f1_score_b))
-        logging.info('On {} Set:\nPerformance of  RRL Model: \n{}\n{}'.format(
-            set_name, metrics.confusion_matrix(y_true, y_pred_b_arg), metrics.classification_report(y_true, y_pred_b_arg)))
-        logging.info('-' * 60)
+        # y_pred_b_arg = np.argmax(y_pred_b, axis=1)
+        # logging.debug('y_rrl_: {} {}'.format(y_pred_b_arg.shape, y_pred_b_arg[:: slice_step]))
+        # logging.debug('y_rrl: {} {}'.format(y_pred_b.shape, y_pred_b[:: (slice_step)]))
+
+        # accuracy_b = metrics.accuracy_score(y_true, y_pred_b_arg)
+        # f1_score_b = metrics.f1_score(y_true, y_pred_b_arg, average='macro')
+
+        # logging.info('-' * 60)
+        # logging.info('On {} Set:\n\tAccuracy of RRL  Model: {}'
+        #                 '\n\tF1 Score of RRL  Model: {}'.format(set_name, accuracy_b, f1_score_b))
+        # logging.info('On {} Set:\nPerformance of  RRL Model: \n{}\n{}'.format(
+        #     set_name, metrics.confusion_matrix(y_true, y_pred_b_arg), metrics.classification_report(y_true, y_pred_b_arg)))
+        # logging.info('-' * 60)
 
         return accuracy_b, f1_score_b
 
