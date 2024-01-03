@@ -199,8 +199,6 @@ class RRL:
                 # y_arg = torch.argmax(y, dim=1)
 
                 y_bar = self.net.forward(X)  # 不再使用softmax激活函数
-                # 应该除以温度吗？
-                # y_bar = y_bar / torch.exp(self.net.t)
 
                 loss_rrl = criterion(y_bar, y) + weight_decay * self.l2_penalty()
                 
